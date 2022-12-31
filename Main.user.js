@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Fix Favourites Page
+// @name         Extra Outfits
 // @version      2.0
-// @description  Fixes the favourite page on roblox
+// @description  Ability to bypass 50 outfits
 // @author       Haydz6
 // @match        https://www.roblox.com/my/avatar
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=roblox.com
