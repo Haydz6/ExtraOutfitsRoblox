@@ -1,0 +1,32 @@
+{
+    "manifest_version": 3,
+    "name": "Extra Roblox Outfits",
+    "description": "Allows you to have more than 50 outfits and hides them from outfit viewer games!",
+    "author": "Haydz6",
+    "short_name": "Outfits+",
+    "version": "1.0",
+    "permissions": [
+        "cookies",
+        "activeTab",
+        "tabs"
+    ],
+    "host_permissions": [
+        "*://www.roblox.com/my/avatar*",
+        "*://web.roblox.com/my/avatar*"
+    ],
+    "background": {
+        "service_worker": "js/getroblosecurity.js"
+    },
+    "content_scripts": [{
+        "matches": [
+            "*://www.roblox.com/my/avatar*",
+            "*://web.roblox.com/my/avatar*"
+        ],
+        "js": [
+            "js/main.js",
+            "js/createelements.js"
+        ],
+        "run_at": "document_start",
+        "all_frames": true
+    }]
+}
