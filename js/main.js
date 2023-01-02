@@ -1,12 +1,14 @@
 let ROBLOSecurity = ""
 let UserId = 0
 let CSRFToken = ""
+let CachedAuthKey = ""
+let FetchingAuthKey = false
 
 let FetchedAllExtraOutfits = false
 let IsFetchingAllExtraOutfits = false
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-const WebserverURL = "http://localhost:8192/api/v4/outfits/"
+const WebserverURL = "https://haydz6.com/api/v4/outfits/"//"http://localhost:8192/api/v4/outfits/"
 
 async function WaitForClass(ClassName){
   let Element = null
@@ -39,17 +41,8 @@ async function WaitForId(Id){
 }
 
 let CostumesList
+let PreviousExtraOutfitButton
 let IsCustomesOpen = false
-
-function IsCustomesListOpen(){
-  return CostumesList.className == "tab-pane ng-scope active" && document.getElementsByClassName("btn-secondary-xs btn-float-right ng-binding ng-scope")[0]
-}
-
-async function RedrawCharacter(){
-  RedrawButton = await WaitForClass("toggle-three-dee btn-control btn-control-small ng-binding")
-  RedrawButton.click()
-  RedrawButton.click()
-}
 
 async function RequestFunc(URL, Method, Headers, Body, CredientalsInclude){
   if (!Headers){
@@ -58,6 +51,11 @@ async function RequestFunc(URL, Method, Headers, Body, CredientalsInclude){
 
   if (URL.search("roblox.com") > -1) {
     Headers["x-csrf-token"] = CSRFToken
+  } else if (URL.search(WebserverURL) > -1){
+    if (URL.search("authenticate") == -1){
+      Headers.Authentication = await GetAuthKey()
+    }
+    Headers["ROBLOSECURITY"] = null
   }
 
   try {
@@ -70,16 +68,96 @@ async function RequestFunc(URL, Method, Headers, Body, CredientalsInclude){
       CSRFToken = NewCSRFToken
     }
 
-    if (!Response.ok && ResBody?.message == "Token Validation Failed"){
+    if (!Response.ok && (ResBody?.message == "Token Validation Failed" || ResBody?.errors?.[0]?.message == "Token Validation Failed") || ResBody?.Result == "Invalid authentication!"){
+      if (ResBody?.Result == "Invalid authentication!"){
+        CachedAuthKey = ""
+        window.localStorage.removeItem("ExtraOutfitsRobloxAuthKey")
+        console.log("auth key invalid, getting a new one")
+      }
+
       console.log("sending with csrf token")
       return await RequestFunc(URL, Method, Headers, Body, CredientalsInclude)
     }
 
-    return [Response.ok, ResBody]
+    return [Response.ok, ResBody, Response]
   } catch (err) {
     console.log(err)
     return [false, {Success: false, Result: "???"}]
   }
+}
+
+//AUTHENTICATION
+function GetCookieValueFromName(Cookies, CookieName){
+  const parts = Cookies.split(`; ${CookieName}=`);
+  if (parts.length === 2) return parts.pop().split(';').shift();
+}
+
+async function SetFavouriteGame(UniverseId, Favourited){
+  return RequestFunc(`https://games.roblox.com/v1/games/${UniverseId}/favorites`, "POST", undefined, JSON.stringify({isFavorited: Favourited}), true)
+}
+
+async function GetAuthKey(){
+  while (FetchingAuthKey){
+    await sleep(100)
+  }
+
+  if (CachedAuthKey != ""){
+    return CachedAuthKey
+  }
+
+  StoredKey = window.localStorage.getItem("ExtraOutfitsRobloxAuthKey")
+
+  if (StoredKey){
+    CachedAuthKey = StoredKey
+    return CachedAuthKey
+  }
+
+  const [GetFavoriteSuccess, FavoriteResult] = await RequestFunc(WebserverURL+"authenticate/start", "POST", undefined, JSON.stringify({UserId: parseInt(UserId)}))
+
+  if (!GetFavoriteSuccess){
+    CreateAlert(FavoriteResult.Result, false)
+    return CachedAuthKey
+  }
+
+  UniverseId = FavoriteResult.UniverseId
+
+  const [FavouriteSuccess] = await SetFavouriteGame(UniverseId, true)
+
+  if (!FavouriteSuccess){
+    CreateAlert("Failed to verify with database!", false)
+    return CachedAuthKey
+  }
+
+  const [ServerSuccess, ServerResult] = await RequestFunc(WebserverURL+"authenticate", "POST", undefined, JSON.stringify({UserId: parseInt(UserId)}))
+
+  if (ServerSuccess){
+    CachedAuthKey = ServerResult.Key
+    window.localStorage.setItem("ExtraOutfitsRobloxAuthKey", CachedAuthKey)
+  }
+
+  new Promise(async function(){
+    while (true){
+      const [FavSuccess] = await SetFavouriteGame(UniverseId, false)
+
+      if (FavSuccess) break
+      await sleep(1000)
+    }
+  })
+
+  FetchingAuthKey = false
+
+  return CachedAuthKey
+}
+//
+
+function IsCustomesListOpen(){
+  return CostumesList.className == "tab-pane ng-scope active" && document.getElementsByClassName("btn-secondary-xs btn-float-right ng-binding ng-scope")[0]
+}
+
+async function RedrawCharacter(){
+  RedrawButton = await WaitForClass("toggle-three-dee btn-control btn-control-small ng-binding")
+  RedrawButton.click()
+  RedrawButton.click()
 }
 
 function IsInputValid(Input, Text){
@@ -104,6 +182,7 @@ async function SaveCurrentOutfit(Name){
   const [SuccessOutfit, CurrentOutfit] = await GetCurrentOutfit()
 
   if (!SuccessOutfit) {
+    CreateAlert(CurrentOutfit.Result, false)
     return [SuccessOutfit, CurrentOutfit]
   }
 
@@ -116,6 +195,7 @@ async function GetExtraOutfits(){
   const [Success, Outfits] = await RequestFunc(WebserverURL, "GET", {"ROBLOSECURITY": ROBLOSecurity})
 
   if (!Success) {
+    CreateAlert(Outfits.Result, false)
     return [false, Outfits]
   }
 
@@ -133,7 +213,7 @@ async function WearExtraOutfit(Id){
 
   AllPromises.push(RequestFunc("https://avatar.roblox.com/v1/avatar/set-body-colors", "POST", {"Content-Type": "application/json"}, JSON.stringify(OutfitInfo.bodyColors), true))
   AllPromises.push(RequestFunc("https://avatar.roblox.com/v1/avatar/set-player-avatar-type", "POST", {"Content-Type": "application/json"}, JSON.stringify({playerAvatarType: OutfitInfo.rigType}), true))
-  AllPromises.push(RequestFunc("https://avatar.roblox.com/v1/avatar/set-scales", "POST", {"Content-Type": "application/json"}, JSON.stringify({playerAvatarType: OutfitInfo.scales}), true))
+  AllPromises.push(RequestFunc("https://avatar.roblox.com/v1/avatar/set-scales", "POST", {"Content-Type": "application/json"}, JSON.stringify(OutfitInfo.scales), true))
   AllPromises.push(RequestFunc("https://avatar.roblox.com/v1/avatar/set-wearing-assets", "POST", {"Content-Type": "application/json"}, JSON.stringify({assetIds: OutfitInfo.assets}), true))
 
   for (let i = 1; i <= 8; i++){
@@ -147,6 +227,8 @@ async function WearExtraOutfit(Id){
   }
 
   await Promise.all(AllPromises)
+
+  CreateAlert("Successfully wore costume", true)
 
   RedrawCharacter()
 }
@@ -194,8 +276,11 @@ function CreateExtraOutfitButton(ExtraOutfit){
 
         if (Success){
           ItemCardNameLinkTitle.innerText = Name
-          ItemCardThumbContainer.setAttribute("data-item-name", OutfitName)
-          IconSettingsButton.setAttribute("data-item-name", OutfitName)
+          ItemCardThumbContainer.setAttribute("data-item-name", Name)
+          IconSettingsButton.setAttribute("data-item-name", Name)
+          CreateAlert("Renamed costume", true)
+        } else {
+          CreateAlert(Result.Result, false)
         }
       }
     })
@@ -217,10 +302,16 @@ function CreateExtraOutfitButton(ExtraOutfit){
     const [ModalWindow, Backdrop, CloseButton, CancelButton, DeleteButton, Input] = CreateOutfitModalWindow("Delete Costume", "Are you sure you want to delete this costume?", undefined, "Delete", "Cancel")
 
     DeleteButton.addEventListener("click", async function(){
+      ModalWindow.remove()
+      Backdrop.remove()
+
       const [Success, Result] = await RequestFunc(WebserverURL+"delete/"+ExtraOutfit.Id, "DELETE", {"ROBLOSECURITY": ROBLOSecurity})
 
       if (Success){
         OutfitElement.remove()
+        CreateAlert("Removed costume", true)
+      } else {
+        CreateAlert(Result.Result, false)
       }
     })
 
@@ -261,6 +352,9 @@ function CreateExtraOutfitButton(ExtraOutfit){
       if (SaveSuccess){
         Thumbnail2DImage.setAttribute("ng-src", SuccessImage && ImageUrl || "https://tr.rbxcdn.com/53eb9b17fe1432a809c73a13889b5006/420/420/Image/Png")
         Thumbnail2DImage.src = SuccessImage && ImageUrl || "https://tr.rbxcdn.com/53eb9b17fe1432a809c73a13889b5006/420/420/Image/Png"
+        CreateAlert("Updated costume", true)
+      } else {
+        CreateAlert(SaveResult.Result, false)
       }
     })
 
@@ -290,6 +384,7 @@ function CreateExtraOutfitButton(ExtraOutfit){
 
   ItemCardsList.insertBefore(OutfitElement, ItemCardsList.firstChild)
 }
+
 
 async function CustomesOpened(){
   CreateButton().addEventListener("click", function(){
@@ -351,9 +446,6 @@ const CustomesObserver = new MutationObserver(function(mutationList, observer){
       if (PreviousIsCustomesOpen === IsCustomesOpen) return
 
       if (IsCustomesOpen) CustomesOpened()
-      else {
-        RemoveOutfitModalWindow()
-      }
     }
   })
 })

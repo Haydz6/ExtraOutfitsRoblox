@@ -87,12 +87,14 @@ function CreateOutfitModalWindow(Title, Description, InputPlaceholder, LeftButto
     CreateButton.setAttribute("ng-disabled", "nameForm.$invalid || nameForm.outfitName.$pristine")
     CreateButton.setAttribute("disabled", "disabled")
     CreateButton.id = "submit"
+    CreateButton.type = "button"
     CreateButton.className = "btn-secondary-md btn-min-width ng-binding"
     CreateButton.innerText = LeftButtonText
   
     let CancelButton = document.createElement("button")
     //CancelButton.setAttribute("ng-click", "close()")
     CancelButton.className = "btn-control-md btn-min-width ng-binding"
+    CancelButton.type = "button"
     CancelButton.innerText = RightButtonText
   
     ModalFooter.appendChild(CreateButton)
@@ -137,6 +139,10 @@ function CreateOutfitModalWindow(Title, Description, InputPlaceholder, LeftButto
 }
 
 function CreateButton(){
+    if (PreviousExtraOutfitButton){
+        //PreviousExtraOutfitButton.remove()
+    }
+
     let Button = document.createElement("button")
     Button.setAttribute("ng-type", "button")
     Button.className = "btn-secondary-xs btn-float-right ng-binding ng-scope"
@@ -144,6 +150,8 @@ function CreateButton(){
     Button.style = "margin-right:130px"
   
     CostumesList.getElementsByTagName("div")[0].appendChild(Button)
+
+    PreviousExtraOutfitButton = Button
   
     return Button
 }
@@ -276,4 +284,23 @@ function CreateOutfitElement(OutfitName, OutfitImageURL){
     ItemCard.appendChild(AvatarItemCard)
 
     return [ItemCard, UpdateButton, RenameButton, DeleteButton, CancelButton, ItemCardThumbContainer, IconSettingsButton, ItemCardMenu, Thumbnail2DImage, ItemCardNameLinkTitle, IconSettingsButton]
+}
+
+async function CreateAlert(Text, Success){
+    let AlertSystemFeedback = document.createElement("div")
+    AlertSystemFeedback.className = "alert-system-feedback"
+
+    let TextHolder = document.createElement("div")
+    TextHolder.className = `alert alert-${Success && "success" || "warning"} ng-binding on`
+    TextHolder.innerText = Text
+    
+    AlertSystemFeedback.appendChild(TextHolder)
+
+    try {
+        (await WaitForClass("alert-context ng-binding")).parentNode.parentNode.appendChild(AlertSystemFeedback)
+    } catch {}
+
+    await sleep(3000)
+
+    AlertSystemFeedback.remove()
 }
