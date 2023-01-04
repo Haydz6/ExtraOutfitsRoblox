@@ -138,29 +138,38 @@ function CreateOutfitModalWindow(Title, Description, InputPlaceholder, LeftButto
     return [OutfitModalWindow, OutfitModalBackdrop, CloseButton, CancelButton, CreateButton, FormGroupInput]
 }
 
-function CreateButton(){
-    if (PreviousExtraOutfitButton){
-        //PreviousExtraOutfitButton.remove()
-    }
-
-    let Button = document.createElement("button")
+function CreateButton(Text){
+  let Button = document.createElement("button")
     Button.setAttribute("ng-type", "button")
     Button.className = "btn-secondary-xs btn-float-right ng-binding ng-scope"
-    Button.innerText = "Create Extra Outfit"
+    Button.innerText = Text || "Create Extra Outfit"
     Button.style = "margin-right:130px"
   
     CostumesList.getElementsByTagName("div")[0].appendChild(Button)
-
-    PreviousExtraOutfitButton = Button
   
     return Button
 }
 
-function CreateOutfitElement(OutfitName, OutfitImageURL){
+function CreateItemCardMenuButton(ButtonName){
+    let ItemCardMenuButton = document.createElement("button")
+    ItemCardMenuButton.setAttribute("ng-repeat", "option in outfitMenuOptions")
+    ItemCardMenuButton.setAttribute("ng-click", "onItemMenuButtonClicked($event,item,option)")
+    ItemCardMenuButton.type = "button"
+    ItemCardMenuButton.className = "btn-secondary-xs ng-binding ng-scope"
+    ItemCardMenuButton.innerText = ButtonName
+
+    return ItemCardMenuButton
+}
+
+function CreateOutfitElement(OutfitName, OutfitImageURL, OutfitId, HideCloudIcon, DoesNotHasId, IsNotExtra){
     let ItemCard = document.createElement("li")
     ItemCard.setAttribute("ng-repeat", "item in items")
     ItemCard.setAttribute("ng-class", "{'five-column' : !avatarLibrary.metaData.isCategoryReorgEnabled, 'six-column' : avatarLibrary.metaData.isCategoryReorgEnabled}")
     ItemCard.className = "list-item item-card ng-scope six-column"
+
+    if (DoesNotHasId){
+        ItemCard.setAttribute("no-id", true)
+    }
 
     let AvatarItemCard = document.createElement("div")
     
@@ -188,7 +197,7 @@ function CreateOutfitElement(OutfitName, OutfitImageURL){
     Thumbnail2DContainer.className = "thumbnail-2d-container"
     Thumbnail2DContainer.setAttribute("ng-class", "$ctrl.getCssClasses()")
     Thumbnail2DContainer.setAttribute("thumbnail-type", "Outfit")
-    Thumbnail2DContainer.setAttribute("thumbnail-target-id", "")
+    Thumbnail2DContainer.setAttribute("thumbnail-target-id", OutfitId)
 
     let Thumbnail2DImage = document.createElement("img")
     Thumbnail2DImage.setAttribute("ng-if", "$ctrl.thumbnailUrl && !$ctrl.isLazyLoadingEnabled()")
@@ -198,12 +207,21 @@ function CreateOutfitElement(OutfitName, OutfitImageURL){
     Thumbnail2DImage.className = "ng-scope ng-isolate-scope"
     Thumbnail2DImage.src = OutfitImageURL
 
+    let IsExtraIcon
+    if (!HideCloudIcon){
+        IsExtraIcon = document.createElement("img")
+        IsExtraIcon.src = chrome.runtime.getURL("/img/cloudicon.png")
+        IsExtraIcon.style = "position:absolute;right:4px;bottom:4px; height:20px; width: 20px;"
+    }
+
     let ItemRestrictionIcon = document.createElement("span")
     ItemRestrictionIcon.setAttribute("ng-show", "item.itemRestrictionIcon")
     ItemRestrictionIcon.setAttribute("ng-class", "item.itemRestrictionIcon")
     ItemRestrictionIcon.className = "restriction-icon ng-hide"
 
     Thumbnail2DContainer.appendChild(Thumbnail2DImage)
+
+    if (IsExtraIcon) Thumbnail2DContainer.appendChild(IsExtraIcon)
     Thumbnail2D.appendChild(Thumbnail2DContainer)
 
     ItemCardThumbContainer.appendChild(Thumbnail2D)
@@ -232,17 +250,6 @@ function CreateOutfitElement(OutfitName, OutfitImageURL){
     ItemCardMenu.setAttribute("blur-target", "blur-target")
     ItemCardMenu.className = "item-card-menu ng-scope ng-isolate-scope"
 
-    function CreateItemCardMenuButton(ButtonName){
-        let ItemCardMenuButton = document.createElement("button")
-        ItemCardMenuButton.setAttribute("ng-repeat", "option in outfitMenuOptions")
-        ItemCardMenuButton.setAttribute("ng-click", "onItemMenuButtonClicked($event,item,option)")
-        ItemCardMenuButton.type = "button"
-        ItemCardMenuButton.className = "btn-secondary-xs ng-binding ng-scope"
-        ItemCardMenuButton.innerText = ButtonName
-
-        return ItemCardMenuButton
-    }
-
     let UpdateButton = CreateItemCardMenuButton("Update")
     let RenameButton = CreateItemCardMenuButton("Rename")
     let DeleteButton = CreateItemCardMenuButton("Delete")
@@ -253,9 +260,8 @@ function CreateOutfitElement(OutfitName, OutfitImageURL){
     ItemCardMenu.appendChild(DeleteButton)
     ItemCardMenu.appendChild(CancelButton)
 
-
     let ItemCardNameLink = document.createElement("a")
-    ItemCardNameLink.classNane = "item-card-name-link"
+    ItemCardNameLink.className = "item-card-name-link"
 
     let ItemCardNameLinkTitle = document.createElement("div")
     ItemCardNameLinkTitle.title = "let"
@@ -283,7 +289,22 @@ function CreateOutfitElement(OutfitName, OutfitImageURL){
     AvatarItemCard.appendChild(ItemCardContainer)
     ItemCard.appendChild(AvatarItemCard)
 
+    if (!IsNotExtra) ItemCard.setAttribute("outfit-type", "Extra")
+    ExtraOutfitsElements.push(ItemCard)
+
     return [ItemCard, UpdateButton, RenameButton, DeleteButton, CancelButton, ItemCardThumbContainer, IconSettingsButton, ItemCardMenu, Thumbnail2DImage, ItemCardNameLinkTitle, IconSettingsButton]
+}
+
+function GetOutfitTypeFromElement(Element){
+    // for (let i = 0; i < ExtraOutfitsElements.length; i++){
+    //     if (ExtraOutfitsElements[i] == Element) {
+    //         return "Extra"
+    //     }
+    // }
+    
+    // return "Roblox"
+
+    return Element.getAttribute("outfit-type") != "Extra" && "Roblox" || "Extra"
 }
 
 async function CreateAlert(Text, Success){

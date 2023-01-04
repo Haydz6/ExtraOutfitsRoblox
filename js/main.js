@@ -1,4 +1,4 @@
-let ROBLOSecurity = ""
+//let ROBLOSecurity = ""
 let UserId = 0
 let CSRFToken = ""
 let CachedAuthKey = ""
@@ -42,7 +42,10 @@ async function WaitForId(Id){
 
 let CostumesList
 let PreviousExtraOutfitButton
+let ExtraOutfitsElements = []
+let CurrentExtraOutfitsInfo = {}
 let IsCustomesOpen = false
+let CustomesOpenInt = 0
 
 async function RequestFunc(URL, Method, Headers, Body, CredientalsInclude){
   if (!Headers){
@@ -55,7 +58,6 @@ async function RequestFunc(URL, Method, Headers, Body, CredientalsInclude){
     if (URL.search("authenticate") == -1){
       Headers.Authentication = await GetAuthKey()
     }
-    Headers["ROBLOSECURITY"] = null
   }
 
   try {
@@ -151,7 +153,7 @@ async function GetAuthKey(){
 //
 
 function IsCustomesListOpen(){
-  return CostumesList.className == "tab-pane ng-scope active" && document.getElementsByClassName("btn-secondary-xs btn-float-right ng-binding ng-scope")[0]
+  return CostumesList.className == "tab-pane ng-scope active" && document.getElementsByClassName("btn-secondary-xs btn-float-right ng-binding ng-scope")[0] && document.querySelectorAll('[ng-click="createOutfitClicked()"]').length > 0
 }
 
 async function RedrawCharacter(){
@@ -188,11 +190,20 @@ async function SaveCurrentOutfit(Name){
 
   const [SuccessImage, ImageUrl] = await GetAvatarImage()
 
-  return await RequestFunc(WebserverURL+"save", "POST", {"ROBLOSECURITY": ROBLOSecurity, "Content-Type": "application/json"}, JSON.stringify({Name: Name, Outfit: CurrentOutfit, Image: SuccessImage && ImageUrl || "https://tr.rbxcdn.com/53eb9b17fe1432a809c73a13889b5006/420/420/Image/Png"}))
+  return await RequestFunc(WebserverURL+"save", "POST", {"Content-Type": "application/json"}, JSON.stringify({Name: Name, Outfit: CurrentOutfit, Image: SuccessImage && ImageUrl || "https://tr.rbxcdn.com/53eb9b17fe1432a809c73a13889b5006/420/420/Image/Png"}))
+}
+
+function GetOutfitIdAndImageFromOutfitCard(OutfitCard){
+  SpanThumbnailContainer = OutfitCard.getElementsByTagName("div")[0].getElementsByClassName("item-card-container remove-panel outfit-card")[0].getElementsByClassName("item-card-link")[0].getElementsByClassName("item-card-thumb-container")[0].getElementsByClassName("item-card-thumb ng-isolate-scope")[0].getElementsByClassName("thumbnail-2d-container")[0]
+
+  OutfitId = SpanThumbnailContainer.getAttribute("thumbnail-target-id")
+  ImageURL = SpanThumbnailContainer.getElementsByClassName("ng-scope ng-isolate-scope")[0].src
+
+  return [OutfitId, ImageURL]
 }
 
 async function GetExtraOutfits(){
-  const [Success, Outfits] = await RequestFunc(WebserverURL, "GET", {"ROBLOSECURITY": ROBLOSecurity})
+  const [Success, Outfits] = await RequestFunc(WebserverURL, "GET")
 
   if (!Success) {
     CreateAlert(Outfits.Result, false)
@@ -202,10 +213,17 @@ async function GetExtraOutfits(){
   return [true, Outfits]
 }
 
+async function GetExtraOutfit(Id){
+  const [Success, OutfitInfo] = await RequestFunc(WebserverURL+"wear/"+Id, "GET")
+
+  return [Success, OutfitInfo]
+}
+
 async function WearExtraOutfit(Id){
-  [Success, OutfitInfo] = await RequestFunc(WebserverURL+"wear/"+Id, "GET", {"ROBLOSECURITY": ROBLOSecurity})
+  const [Success, OutfitInfo] = await GetExtraOutfit(Id)
 
   if (!Success) {
+    CreateAlert(OutfitInfo.Result, false)
     return [false, OutfitInfo]
   }
 
@@ -216,15 +234,13 @@ async function WearExtraOutfit(Id){
   AllPromises.push(RequestFunc("https://avatar.roblox.com/v1/avatar/set-scales", "POST", {"Content-Type": "application/json"}, JSON.stringify(OutfitInfo.scales), true))
   AllPromises.push(RequestFunc("https://avatar.roblox.com/v1/avatar/set-wearing-assets", "POST", {"Content-Type": "application/json"}, JSON.stringify({assetIds: OutfitInfo.assets}), true))
 
-  for (let i = 1; i <= 8; i++){
-    EmoteId = OutfitInfo.emotes[i]
+  // for (let i = 1; i <= 8; i++){
+  //   EmoteId = OutfitInfo.emotes[i]
 
-    if (!EmoteId) {
-      AllPromises.push(RequestFunc("https://avatar.roblox.com/v1/emotes/"+i, "DELETE", {"Content-Type": "application/json"}, JSON.stringify({}), true))
-    } else {
-      AllPromises.push(RequestFunc(`https://avatar.roblox.com/v1/emotes/${EmoteId}/${i}`, "POST", {"Content-Type": "application/json"}, JSON.stringify({}), true))
-    }
-  }
+  //   if (EmoteId) {
+  //     AllPromises.push(RequestFunc(`https://avatar.roblox.com/v1/emotes/${EmoteId}/${i}`, "POST", {"Content-Type": "application/json"}, JSON.stringify({}), true))
+  //   }
+  // }
 
   await Promise.all(AllPromises)
 
@@ -238,7 +254,7 @@ function CreateExtraOutfitButton(ExtraOutfit){
     return
   }
 
-  const [OutfitElement, UpdateButton, RenameButton, DeleteButton, CancelButton, ItemCardThumbContainer, SettingsButton, SettingsList, Thumbnail2DImage, ItemCardNameLinkTitle, IconSettingsButton] = CreateOutfitElement(ExtraOutfit.Name, ExtraOutfit.Image)
+  const [OutfitElement, UpdateButton, RenameButton, DeleteButton, CancelButton, ItemCardThumbContainer, SettingsButton, SettingsList, Thumbnail2DImage, ItemCardNameLinkTitle, IconSettingsButton] = CreateOutfitElement(ExtraOutfit.Name, ExtraOutfit.Image, ExtraOutfit.Id)
 
   let SettingsOpened = false
 
@@ -272,7 +288,7 @@ function CreateExtraOutfitButton(ExtraOutfit){
       if (IsInputValid(Input, Name)) {
         ModalWindow.remove()
         Backdrop.remove()
-        const [Success, Result] = await RequestFunc(WebserverURL+"rename", "PATCH", {"ROBLOSECURITY": ROBLOSecurity}, JSON.stringify({Id: ExtraOutfit.Id, Name: Name}))
+        const [Success, Result] = await RequestFunc(WebserverURL+"rename", "PATCH", undefined, JSON.stringify({Id: ExtraOutfit.Id, Name: Name}))
 
         if (Success){
           ItemCardNameLinkTitle.innerText = Name
@@ -305,11 +321,12 @@ function CreateExtraOutfitButton(ExtraOutfit){
       ModalWindow.remove()
       Backdrop.remove()
 
-      const [Success, Result] = await RequestFunc(WebserverURL+"delete/"+ExtraOutfit.Id, "DELETE", {"ROBLOSECURITY": ROBLOSecurity})
+      const [Success, Result] = await RequestFunc(WebserverURL+"delete/"+ExtraOutfit.Id, "DELETE")
 
       if (Success){
         OutfitElement.remove()
         CreateAlert("Removed costume", true)
+        CurrentExtraOutfitsInfo[ExtraOutfit.Id] = null
       } else {
         CreateAlert(Result.Result, false)
       }
@@ -347,7 +364,7 @@ function CreateExtraOutfitButton(ExtraOutfit){
   
       const [SuccessImage, ImageUrl] = await GetAvatarImage()
   
-      const [SaveSuccess, SaveResult] = await RequestFunc(WebserverURL+"update", "PUT", {"ROBLOSECURITY": ROBLOSecurity, "Content-Type": "application/json"}, JSON.stringify({Id: ExtraOutfit.Id, Name: ExtraOutfit.Name, Outfit: CurrentOutfit, Image: SuccessImage && ImageUrl || "https://tr.rbxcdn.com/53eb9b17fe1432a809c73a13889b5006/420/420/Image/Png"}))
+      const [SaveSuccess, SaveResult] = await RequestFunc(WebserverURL+"update", "PUT", {"Content-Type": "application/json"}, JSON.stringify({Id: ExtraOutfit.Id, Name: ExtraOutfit.Name, Outfit: CurrentOutfit, Image: SuccessImage && ImageUrl || "https://tr.rbxcdn.com/53eb9b17fe1432a809c73a13889b5006/420/420/Image/Png"}))
     
       if (SaveSuccess){
         Thumbnail2DImage.setAttribute("ng-src", SuccessImage && ImageUrl || "https://tr.rbxcdn.com/53eb9b17fe1432a809c73a13889b5006/420/420/Image/Png")
@@ -387,7 +404,11 @@ function CreateExtraOutfitButton(ExtraOutfit){
 
 
 async function CustomesOpened(){
-  CreateButton().addEventListener("click", function(){
+  CustomesOpenInt ++
+
+  PreviousExtraOutfitButton = CreateButton()
+
+  PreviousExtraOutfitButton.addEventListener("click", function(){
     [ModalWindow, Backdrop, CloseButton, CancelButton, CreateOutfitButton, Input] = CreateOutfitModalWindow("Create Extra Costume", "A costume will be created from your avatar's current appearance.", "Name your costume", "Create", "Cancel")
 
     function RemoveOutfitModalWindow(){
@@ -407,6 +428,7 @@ async function CustomesOpened(){
         const [Success, Result] = await SaveCurrentOutfit(Name)
 
         if (Success){
+          CurrentExtraOutfitsInfo[Result.Id] = Result
           CreateExtraOutfitButton(Result)
         }
       }
@@ -422,18 +444,44 @@ async function CustomesOpened(){
     })
   })
 
+  // CreateButton("Convert All Outfits").addEventListener("click", async function(){
+  //   const [ModalWindow, Backdrop, CloseButton, CancelButton, ConvertButton, Input] = CreateOutfitModalWindow("Convert all costumes", "Do you want to convert all your costumes to extras?", undefined, "Convert", "Cancel")
+  
+  //   CloseButton.addEventListener("click", function(){
+  //     ModalWindow.remove()
+  //     Backdrop.remove()
+  //   })
+
+  //   CancelButton.addEventListener("click", function(){
+  //     ModalWindow.remove()
+  //     Backdrop.remove()
+  //   })
+
+  //   ConvertButton.addEventListener("click", async function(){
+  //     ModalWindow.remove()
+  //     Backdrop.remove()
+
+  //     for (let i = 0; i < ItemCardsList)
+  //   })
+  // })
+
   console.log("waiting for item-cards")
   ItemCardsList = CostumesList.getElementsByTagName("div")[1].getElementsByTagName("div")[0].getElementsByTagName("ul")[0]
   console.log("got")
 
+  CacheCustomesOpenInt = CustomesOpenInt
+
   const [Success, ExtraOutfits] = await GetExtraOutfits()
 
-  if (!Success){
+  if (!Success || CacheCustomesOpenInt != CustomesOpenInt){
     return
   }
 
   for (let i = 0; i < ExtraOutfits.length; i++){
-    CreateExtraOutfitButton(ExtraOutfits[i])
+    const ExtraOutfit = ExtraOutfits[i]
+    CurrentExtraOutfitsInfo[ExtraOutfit.Id] = ExtraOutfit
+
+    CreateExtraOutfitButton(ExtraOutfit)
   }
 }
 
@@ -446,17 +494,28 @@ const CustomesObserver = new MutationObserver(function(mutationList, observer){
       if (PreviousIsCustomesOpen === IsCustomesOpen) return
 
       if (IsCustomesOpen) CustomesOpened()
+      else {
+        if (PreviousExtraOutfitButton){
+          PreviousExtraOutfitButton.remove()
+          PreviousExtraOutfitButton = null
+        }
+
+        for (let i = 0; i < ExtraOutfitsElements.length; i++){
+          ExtraOutfitsElements[i].remove()
+        }
+        ExtraOutfitsElements = []
+      }
     }
   })
 })
 
-function GetRobloCookie(){
-  chrome.runtime.onMessage.addListener(function(request, sender, callback) {
-    if (request.type === "roblosecurity"){
-      ROBLOSecurity = request.value
-    }
-  })
-}
+// function GetRobloCookie(){
+//   chrome.runtime.onMessage.addListener(function(request, sender, callback) {
+//     if (request.type === "roblosecurity"){
+//       ROBLOSecurity = request.value
+//     }
+//   })
+// }
 
 async function RunMain(){
   CostumesList = await WaitForId("costumes")
@@ -464,13 +523,14 @@ async function RunMain(){
   CustomesObserver.observe(CostumesList, {attributes: true})
   CustomesObserver.observe(CostumesList.getElementsByTagName("div")[0], {childList: true})
 
-  GetRobloCookie()
+  //GetRobloCookie()
 
   while (!document.head){
     await sleep(100)
   }
 
   UserId = document.head.querySelector("[name~=user-data][data-userid]").getAttribute("data-userid")
+  StartConversion()
 
   console.log("extra outfits ready")
 }

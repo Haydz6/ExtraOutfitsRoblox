@@ -5,18 +5,20 @@
     "author": "Haydz6",
     "short_name": "Outfits+",
     "version": "1.0",
-    "permissions": [
-        "cookies",
-        "activeTab",
-        "tabs"
-    ],
+    "permissions": [],
     "host_permissions": [
         "*://www.roblox.com/my/avatar*",
         "*://web.roblox.com/my/avatar*"
     ],
-    "background": {
-        "service_worker": "js/getroblosecurity.js"
-    },
+    "web_accessible_resources": [
+        {
+            "resources": ["img/*"],
+            "matches": [
+                "https://www.roblox.com/*",
+                "https://web.roblox.com/*"
+            ]
+        }
+    ],
     "content_scripts": [{
         "matches": [
             "*://www.roblox.com/my/avatar*",
@@ -24,7 +26,9 @@
         ],
         "js": [
             "js/main.js",
-            "js/createelements.js"
+            "js/createelements.js",
+            "js/handleconversion.js",
+            "js/createnormaloutfitelement.js"
         ],
         "run_at": "document_start",
         "all_frames": true
