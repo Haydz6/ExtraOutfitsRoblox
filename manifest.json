@@ -5,11 +5,9 @@
     "author": "Haydz6",
     "short_name": "Outfits+",
     "version": "1.0",
-    "permissions": [],
-    "host_permissions": [
-        "*://www.roblox.com/my/avatar*",
-        "*://web.roblox.com/my/avatar*"
-    ],
+	"icons": {
+		"128": "img/extraoutfitsicon.png"
+	},
     "web_accessible_resources": [
         {
             "resources": ["img/*"],
